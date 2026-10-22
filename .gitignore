@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.idea/
+.vscode/
+*.egg-info/
+.env
+
+# runtime-состояние сервиса (HITL, опубликованное, кэш обложек)
+data/runtime/
+
+# VOD-кадры живут в DVC (dvc.yaml: stage fixtures), в git — только lock
+/data/vod/
+
+# отчёты eval (артефакты CI)
+evals/reports/

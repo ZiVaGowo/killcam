@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: killcam
+    folder: Kill Cam
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

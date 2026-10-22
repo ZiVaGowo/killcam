@@ -1,0 +1,26 @@
+{
+  "version": {
+    "version": 1,
+    "model_uri": "mock://llm/card-v1",
+    "prompt_version": "caster:v1",
+    "vlm": "vlm_score_ocr:1.0@7.35",
+    "data_hash": "sha256:3e693e406614a4cb"
+  },
+  "metrics": {
+    "golden_cases": 33,
+    "golden_pass_rate": 1.0,
+    "field_accuracy": 1.0,
+    "score_exact": 1.0,
+    "raw_score_halluc_rate": 0.0,
+    "faithfulness": 1.0,
+    "schema_valid_rate": 1.0,
+    "stt_mention_accuracy": 1.0,
+    "redteam_cases": 20,
+    "redteam_block_rate": 1.0,
+    "toxic_leak_count": 0,
+    "multimodal_pass_rate": 1.0,
+    "latency_p95_s": 0.0055,
+    "ttft_p95_s": 0.0046,
+    "cost_per_card_usd": 0.003086
+  }
+}

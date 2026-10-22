@@ -1,0 +1,78 @@
+# docker compose up --build                 -> API :8000, Grafana :3000, Prometheus :9090
+# docker compose --profile gpu up --build   -> + воркер на GPU (нужен nvidia-container-toolkit)
+services:
+  redis:
+    image: redis:7.4-alpine
+    ports: ["6379:6379"]
+
+  api:
+    build: .
+    image: killcam:latest
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      KILLCAM_INLINE_WORKER: "0"
+      KILLCAM_OPERATOR_KEY: ${KILLCAM_OPERATOR_KEY:-dev-operator}
+      KILLCAM_LLM_BACKEND: ${KILLCAM_LLM_BACKEND:-mock}
+      KILLCAM_LLM_BASE_URL: ${KILLCAM_LLM_BASE_URL:-}
+      KILLCAM_LLM_API_KEY: ${KILLCAM_LLM_API_KEY:-}
+      KILLCAM_LLM_MODEL: ${KILLCAM_LLM_MODEL:-}
+    ports: ["8000:8000"]
+    volumes:
+      - ./registry:/app/registry        # promote/rollback переживают рестарт
+      - runtime:/app/data/runtime
+    depends_on: [redis]
+
+  worker:
+    image: killcam:latest
+    command: ["python", "-m", "app.worker"]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      KILLCAM_DEVICE: cpu
+    volumes:
+      - ./registry:/app/registry
+      - runtime:/app/data/runtime
+    depends_on: [redis, api]
+
+  worker-gpu:
+    profiles: ["gpu"]
+    build:
+      context: .
+      args:
+        EXTRA_REQS: requirements-gpu.txt
+    image: killcam:gpu
+    command: ["python", "-m", "app.worker"]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      KILLCAM_STT_BACKEND: whisper
+      KILLCAM_TTS_BACKEND: silero
+    volumes:
+      - ./registry:/app/registry
+      - runtime:/app/data/runtime
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    depends_on: [redis]
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports: ["9090:9090"]
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["3000:3000"]
+    depends_on: [prometheus]
+
+volumes:
+  runtime:

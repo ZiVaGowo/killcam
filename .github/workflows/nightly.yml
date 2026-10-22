@@ -1,0 +1,32 @@
+name: Nightly train-gate
+
+on:
+  schedule:
+    - cron: "0 3 * * *"   # каждую ночь, 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: python scripts/data_lock.py --check
+      - run: python scripts/make_fixtures.py --only vod
+      - name: Full eval of Production (regression vs baseline)
+        run: python -m evals.run_eval --out evals/reports/nightly_production.json
+      - name: Train-gate — оценить кандидатов в Staging (без промоута)
+        run: python scripts/registry_cli.py gate --stage Staging
+      - name: Drift — VOD текущего патча (ожидаем без алерта)
+        run: python scripts/drift_report.py data/vod/final_g5 --fail-on-alert --out evals/reports/drift_current.json
+      - name: Drift — кадры после патча 7.36 (ожидаем алерт => пора обновлять эталон UI и VLM)
+        run: python scripts/drift_report.py data/vod/after_patch_7_36 --out evals/reports/drift_patch.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-reports
+          path: evals/reports/

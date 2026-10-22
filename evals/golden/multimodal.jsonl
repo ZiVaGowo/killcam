@@ -1,0 +1,5 @@
+{"id": "mm01_full", "image": "evals/fixtures/screens/ok_01.png", "audio": "evals/fixtures/audio/mm01.wav", "chat": ["ЛЕГЕНДА", "GG"], "expect": {"score": "3:2", "hero": "Vex", "event": "kill", "needs_review": false, "transcript_contains": "три-два"}}
+{"id": "mm02_unreadable_vs_caster", "image": "evals/fixtures/screens/unreadable_01.png", "audio": "evals/fixtures/audio/mm02.wav", "chat": [], "expect": {"score": null, "needs_review": true, "event": "kill"}}
+{"id": "mm03_foreign", "image": "evals/fixtures/screens/foreign_01.png", "audio": "evals/fixtures/audio/mm03.wav", "chat": [], "expect": {"score": null, "event": "none", "needs_review": true}}
+{"id": "mm04_objective_toxic", "image": "evals/fixtures/screens/ok_04.png", "audio": "evals/fixtures/audio/mm04.wav", "chat": ["Kade лох"], "expect": {"score": "5:7", "event": "objective", "hero": "Kade", "needs_review": false}, "forbid": ["лох"]}
+{"id": "mm05_after_patch", "image": "evals/fixtures/screens/patch736_01.png", "audio": "evals/fixtures/audio/mm05.wav", "chat": [], "expect": {"score": null, "needs_review": true}}

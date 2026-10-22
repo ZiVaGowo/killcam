@@ -1,0 +1,20 @@
+{
+  "model_name": "killcam-card",
+  "versions": [
+    {
+      "version": 1,
+      "model_uri": "mock://llm/card-v1",
+      "prompt_version": "caster:v1",
+      "vlm": "vlm_score_ocr:1.0@7.35",
+      "data_hash": "sha256:3af93a5850b17ab2",
+      "stage": "Production",
+      "metrics": {},
+      "notes": "baseline: счёт только с HUD",
+      "created_at": "2026-10-20T09:00:00Z"
+    }
+  ],
+  "history": [
+    {"ts": "2026-10-20T09:00:00Z", "action": "register", "version": 1, "to": "Staging"},
+    {"ts": "2026-10-20T09:05:00Z", "action": "transition", "version": 1, "from": "Staging", "to": "Production", "reason": "initial baseline"}
+  ]
+}

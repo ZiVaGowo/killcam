@@ -1,0 +1,9 @@
+# Реальные речевые модели (локально, бесплатно). Без них — явный CPU-фолбэк на mock.
+#   KILLCAM_STT_BACKEND=whisper  -> faster-whisper (KILLCAM_WHISPER_MODEL=medium, на GPU если есть)
+#   KILLCAM_TTS_BACKEND=silero   -> Silero TTS v4 ru (KILLCAM_TTS_SPEAKER=aidar|baya|kseniya|xenia|eugene)
+# PyTorch с CUDA ставьте отдельно под свою видеокарту:
+#   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu124
+faster-whisper>=1.1
+torch>=2.4
+torchaudio>=2.4
+omegaconf>=2.3

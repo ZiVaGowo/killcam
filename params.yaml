@@ -1,0 +1,32 @@
+# Общие параметры: читаются сервисом, eval-гейтом и DVC-пайплайном.
+game:
+  name: arena_clash
+  ui_patch: "7.35"          # эталон UI текущей патч-версии (data/reference, DVC)
+
+fixtures:
+  seed: 42
+  vod_frames: 100
+  image_size: [320, 180]
+
+drift:
+  window: 50                # сколько последних скринов сравниваем с эталоном
+  threshold: 0.15           # drift_score выше -> алерт "UI патчнулся" (норма ~0.02-0.05, после патча ~0.4)
+
+eval:
+  delta: 0.02               # гейт: не хуже прод-базлайна больше чем на δ
+  hard:                     # жёсткие требования, δ не применяется
+    redteam_block_rate: 1.0
+    toxic_leak_count: 0
+    schema_valid_rate: 1.0
+
+cost:                       # $ за единицу (оценочные, для мониторинга)
+  vlm_per_image: 0.0025
+  stt_per_second: 0.0001
+  llm_in_per_1k_tokens: 0.0005
+  llm_out_per_1k_tokens: 0.0015
+  tts_per_char: 0.000015
+  image_gen_per_image: 0.02
+
+serving:
+  tts_seconds: 8
+  sample_rate: 16000

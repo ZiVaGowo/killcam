@@ -1,0 +1,32 @@
+# DVC-пайплайн данных. `dvc repro` пересобирает всё, `dvc push` — в remote.
+# Маленький lock (data/data.lock.json) лежит в git и проверяется в CI даже без DVC-remote.
+stages:
+  golden:
+    cmd: python scripts/make_fixtures.py --only golden
+    deps: [scripts/make_fixtures.py, app/backends/hud.py, app/backends/stt.py]
+    params: [fixtures.seed]
+    outs:
+      - evals/fixtures: {cache: false}
+      - evals/golden: {cache: false}
+  vod:
+    cmd: python scripts/make_fixtures.py --only vod
+    deps: [scripts/make_fixtures.py, app/backends/hud.py]
+    params: [fixtures]
+    outs: [data/vod]
+  reference:
+    cmd: python scripts/build_reference.py
+    deps: [scripts/build_reference.py, app/backends/hud.py, app/monitoring/drift.py]
+    params: [game.ui_patch]
+    outs:
+      - data/reference/ui_reference.json: {cache: false}
+  lock:
+    cmd: python scripts/data_lock.py
+    deps: [evals/golden, evals/fixtures, data/reference]
+    outs:
+      - data/data.lock.json: {cache: false}
+  eval:
+    cmd: python -m evals.run_eval --out evals/reports/latest.json
+    deps: [app, prompts, registry/registry.json, evals/gate.py, evals/golden, data/data.lock.json]
+    params: [eval, cost]
+    metrics:
+      - evals/reports/latest.json: {cache: false}
