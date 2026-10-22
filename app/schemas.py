@@ -86,7 +86,7 @@ class BatchJobStatus(BaseModel):
 
 class TTSRequest(BaseModel):
     text: str = Field(max_length=300)
-    voice: str = "caster_ru"
+    voice: str = Field(default="", max_length=40, description='модель/голос, напр. "v5_6_ru/romchik"; пусто — по умолчанию')
 
 
 class ThumbnailRequest(BaseModel):
@@ -113,3 +113,10 @@ class RegisterRequest(BaseModel):
     model_uri: str | None = None
     vlm: str | None = None
     notes: str = ""
+
+
+class MatchFrameRequest(BaseModel):
+    image_b64: str
+    frame: int | None = None
+    announce: bool = True          # озвучивать моменты с hype ≥ порога
+    voice: str = Field(default="", max_length=40)

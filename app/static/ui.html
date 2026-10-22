@@ -16,7 +16,7 @@
     --shadow-lg: 0 2px 4px rgba(16,24,40,.05), 0 12px 32px rgba(16,24,40,.08);
     --ok: #12855a; --ok-soft: #e3f4ec; --bad: #d23a3f; --bad-soft: #fdecec; --warn: #b4610a; --warn-soft: #fdf1e2;
     --info: #2f62d6; --info-soft: #e8eefc;
-    --c-live: #e5484d; --c-batch: #7a5af8; --c-media: #0b9b8f; --c-security: #e8590c; --c-registry: #2f62d6; --c-monitor: #16a34a;
+    --c-live: #e5484d; --c-batch: #7a5af8; --c-media: #0b9b8f; --c-security: #e8590c; --c-registry: #2f62d6; --c-monitor: #16a34a; --c-match: #d6336c;
     --tab: var(--c-live);
     --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
@@ -28,6 +28,7 @@
   body[data-tab="security"] { --tab: var(--c-security); }
   body[data-tab="registry"] { --tab: var(--c-registry); }
   body[data-tab="monitor"] { --tab: var(--c-monitor); }
+  body[data-tab="match"] { --tab: var(--c-match); }
 
   * { box-sizing: border-box; }
   html, body { margin: 0; color: var(--fg); font: 14px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
@@ -62,7 +63,7 @@
   nav button.active .ic { background: rgba(255,255,255,.22); color: #fff; }
   nav button[data-tab="live"] { --c: var(--c-live); } nav button[data-tab="batch"] { --c: var(--c-batch); }
   nav button[data-tab="media"] { --c: var(--c-media); } nav button[data-tab="security"] { --c: var(--c-security); }
-  nav button[data-tab="registry"] { --c: var(--c-registry); } nav button[data-tab="monitor"] { --c: var(--c-monitor); }
+  nav button[data-tab="registry"] { --c: var(--c-registry); } nav button[data-tab="match"] { --c: var(--c-match); } nav button[data-tab="monitor"] { --c: var(--c-monitor); }
   nav .n[hidden] { display: none; }
   nav .n { min-width: 18px; padding: 0 6px; border-radius: 9px; background: var(--bad); color: #fff; font-size: 11px; font-weight: 600; text-align: center; line-height: 18px; }
   nav button.active .n { background: #fff; color: var(--c); }
@@ -194,10 +195,53 @@
   .transcript { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--panel2); border: 1px solid var(--line); font-size: 13px; }
   .transcript:empty { display: none; }
   .transcript q { font-weight: 600; quotes: "\00AB" "\00BB"; }
+  .voicegrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+  .voicegrid .btn { justify-content: flex-start; font-size: 12px; }
+  .voicegrid .btn small { color: var(--muted); margin-left: auto; font-family: var(--mono); }
+  .voicegrid .btn.cur { border-color: var(--tab); background: color-mix(in srgb, var(--tab) 8%, #fff); }
+  /* ---------- Матч LIVE */
+  .stage { position: relative; border-radius: 14px; overflow: hidden; background: #0b0d12; aspect-ratio: 16/9; box-shadow: var(--shadow-lg); }
+  .stage img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; display: block; }
+  .live { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .live span { flex: none; white-space: nowrap; background: #161a23; color: #fff; font: 600 13px var(--mono); padding: 5px 11px; border-radius: 7px; }
+  .live span.desc { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; background: transparent; color: var(--muted); font: 500 13px var(--sans); }
+  .live .rec { background: var(--c-match); }
+  .live .rec::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #fff; margin-right: 6px; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+  .banner { position: absolute; left: 50%; bottom: 18px; transform: translate(-50%, 20px); opacity: 0; transition: all .35s cubic-bezier(.2,.9,.3,1.3);
+    min-width: 62%; max-width: 92%; text-align: center; padding: 12px 22px 14px; border-radius: 12px; color: #fff; background: rgba(12,14,20,.86);
+    border-top: 4px solid var(--tier, var(--c-match)); backdrop-filter: blur(6px); }
+  .banner.show { opacity: 1; transform: translate(-50%, 0); }
+  .banner .kind { font: 700 12px var(--sans); letter-spacing: 2.5px; text-transform: uppercase; color: var(--tier, var(--c-match)); }
+  .banner .title { font: 800 22px/1.25 var(--sans); margin-top: 4px; letter-spacing: -.3px; }
+  .banner .sub { font-size: 12px; color: #aab2c0; margin-top: 4px; }
+  .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+  .controls .grow { flex: 1; }
+  .timeline { position: relative; height: 34px; margin-top: 12px; }
+  .timeline .track { position: absolute; left: 0; right: 0; top: 15px; height: 4px; background: var(--sunken); border-radius: 4px; }
+  .timeline .fill { position: absolute; left: 0; top: 15px; height: 4px; background: var(--tab); border-radius: 4px; width: 0; transition: width .2s; }
+  .timeline .mk { position: absolute; top: 9px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; border: 2px solid #fff; background: var(--tier); box-shadow: 0 1px 4px rgba(0,0,0,.25); cursor: default; }
+  .timeline .mk.small { top: 12px; width: 10px; height: 10px; margin-left: -5px; }
+  .timeline .lbl { position: absolute; top: 24px; font: 500 10px var(--mono); color: var(--muted); transform: translateX(-50%); }
+  .hlfeed { display: flex; flex-direction: column; gap: 8px; max-height: 560px; overflow: auto; }
+  .hl { display: grid; grid-template-columns: 52px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: #fff; border-left: 4px solid var(--tier); animation: fade .3s ease; }
+  .hl .t { font: 600 13px var(--mono); color: var(--muted); }
+  .hl .h { font-weight: 600; font-size: 13.5px; }
+  .hl .meta { display: flex; gap: 6px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+  .hl .bar { display: inline-block; width: 64px; height: 5px; background: var(--sunken); border-radius: 4px; overflow: hidden; }
+  .hl .bar i { display: block; height: 100%; background: var(--tier); }
+  .hl.quiet { opacity: .72; }
+  .tier-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .tier-legend b { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--tier); margin-right: 5px; vertical-align: 0; }
+  .feedrow { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 0; }
+  .hero-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .towers { display: grid; grid-template-columns: auto repeat(3, 1fr); gap: 6px 10px; font-size: 12px; align-items: center; }
+  .towers .tw { display: flex; gap: 3px; } .towers .tw i { width: 14px; height: 8px; border-radius: 2px; background: var(--line2); }
   ::-webkit-scrollbar { width: 10px; height: 10px; } ::-webkit-scrollbar-thumb { background: #cfd4dd; border-radius: 10px; border: 2px solid transparent; background-clip: content-box; }
 </style>
 </head>
-<body data-tab="live">
+<body data-tab="match">
 <svg width="0" height="0" style="position:absolute">
   <defs>
     <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
@@ -219,6 +263,9 @@
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
     <symbol id="i-rec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="currentColor"/></symbol>
     <symbol id="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></symbol>
     <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></symbol>
   </defs>
 </svg>
@@ -233,7 +280,8 @@
     </div>
   </div>
   <nav id="tabs">
-    <button data-tab="live" class="active"><span class="ic"><svg class="i"><use href="#i-target"/></svg></span>Момент</button>
+    <button data-tab="match" class="active"><span class="ic"><svg class="i"><use href="#i-bolt"/></svg></span>Матч LIVE</button>
+    <button data-tab="live"><span class="ic"><svg class="i"><use href="#i-target"/></svg></span>Момент</button>
     <button data-tab="batch"><span class="ic"><svg class="i"><use href="#i-film"/></svg></span>Батч VOD</button>
     <button data-tab="media"><span class="ic"><svg class="i"><use href="#i-mic"/></svg></span>Медиа</button>
     <button data-tab="security"><span class="ic"><svg class="i"><use href="#i-shield"/></svg></span>Безопасность <span class="n" id="hitl-n" hidden>0</span></button>
@@ -243,8 +291,52 @@
 </header>
 
 <main>
+<!-- ================================================================ MATCH LIVE -->
+<section class="tab active" id="tab-match">
+  <div class="pagehead"><div><h2>Матч LIVE</h2><p>Запись матча идёт как прямой эфир: движок следит за игрой, ловит мультикиллы, эйсы и снос линий — и озвучивает только важное</p></div></div>
+  <div class="grid2" style="grid-template-columns: 1fr minmax(320px, 420px)">
+    <div>
+      <div class="live"><span class="rec" id="m-rec">LIVE</span><span id="m-clock">0:00</span><span id="m-score">0 : 0</span>
+        <span class="desc">Team Nova — Iron Owls · финал, игра 5</span></div>
+      <div class="stage">
+        <img id="m-frame" alt="кадр трансляции">
+        <div class="banner" id="m-banner"><div class="kind" id="m-kind"></div><div class="title" id="m-title"></div><div class="sub" id="m-sub"></div></div>
+      </div>
+      <div class="timeline" id="m-timeline"><div class="track"></div><div class="fill" id="m-fill"></div></div>
+      <div class="controls">
+        <button class="btn primary" id="m-play"><svg class="i"><use href="#i-play"/></svg> Запустить эфир</button>
+        <button class="btn" id="m-restart"><svg class="i"><use href="#i-undo"/></svg> Сначала</button>
+        <select class="in" id="m-vod" style="width:auto"></select>
+        <select class="in" id="m-speed" style="width:auto"><option value="700">x1</option><option value="350" selected>x2</option><option value="120">x4</option></select>
+        <div class="grow"></div>
+        <label class="row" style="gap:6px"><svg class="i"><use href="#i-volume"/></svg> <input type="checkbox" id="m-voice" checked> голос</label>
+        <select class="in" id="m-voice-pick" style="width:auto"></select>
+      </div>
+      <div class="grid-even" style="margin-top:16px">
+        <div class="card" style="margin:0"><h3>Лента убийств на кадре</h3><div id="m-killfeed" class="hint">—</div></div>
+        <div class="card" style="margin:0"><h3>Башни</h3><div id="m-towers" class="towers"></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <h3>Хайлайты <span class="right" id="m-count">0</span></h3>
+        <div class="tier-legend" style="margin-bottom:10px">
+          <span style="--tier:#7c3aed"><b></b>легендарно ≥90</span><span style="--tier:#e5484d"><b></b>эпично ≥75</span>
+          <span style="--tier:#f08c00"><b></b>круто ≥60 · голос</span><span style="--tier:#adb5bd"><b></b>в ленту</span>
+        </div>
+        <div class="hlfeed" id="m-feed"><div class="empty"><div class="big"><svg class="i"><use href="#i-bolt"/></svg></div>Нажмите «Запустить эфир»</div></div>
+      </div>
+      <div class="kpis" style="grid-template-columns:repeat(3,1fr); margin-top:14px">
+        <div class="kpi"><div class="k">Киллов</div><div class="v" id="m-kills">0</div></div>
+        <div class="kpi"><div class="k">Озвучено</div><div class="v" id="m-announced">0</div></div>
+        <div class="kpi"><div class="k">Кадр</div><div class="v" id="m-latency">—</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ================================================================ LIVE -->
-<section class="tab active" id="tab-live">
+<section class="tab" id="tab-live">
   <div class="pagehead"><div><h2>Момент</h2><p>Кадр + голос кастера + чат → проверенная карточка в эфир</p></div></div>
   <div class="grid2">
     <div>
@@ -368,6 +460,8 @@
       <h3>TTS-отбивка · 8 секунд</h3>
       <label class="f">Текст</label>
       <input class="in" id="tts-text" value="Векс забирает килл на 23:41!">
+      <label class="f">Голос</label>
+      <select class="in" id="tts-voice"></select>
       <button class="btn primary" id="tts-run" style="margin-top:12px"><svg class="i"><use href="#i-mic"/></svg> Озвучить</button>
       <audio id="tts-audio" controls></audio>
       <div class="kpis" style="grid-template-columns:repeat(3,1fr); margin-top:10px">
@@ -376,6 +470,8 @@
         <div class="kpi"><div class="k">Cost</div><div class="v" id="tts-cost">—</div></div>
       </div>
       <p class="hint">Текст проходит guard: оскорбления → 400, телефоны вырезаются.</p>
+      <label class="f">Сравнить голоса — нажмите, чтобы послушать эту фразу</label>
+      <div class="voicegrid" id="voice-grid"></div>
     </div>
     <div class="card">
       <h3>Обложка «KILL · mm:ss»</h3>
@@ -502,7 +598,7 @@ const pill = (txt, cls = "") => `<span class="pill ${cls}">${txt}</span>`;
 
 /* ======================================================= tabs / theme / ctx */
 function showTab(name) {
-  if (!document.getElementById("tab-" + name)) name = "live";
+  if (!document.getElementById("tab-" + name)) name = "match";
   document.body.dataset.tab = name;
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
   document.querySelectorAll("section.tab").forEach((s) => s.classList.toggle("active", s.id === "tab-" + name));
@@ -511,7 +607,7 @@ function showTab(name) {
   if (name === "security") loadHitl();
   if (name === "monitor") refreshMonitor();
 }
-window.addEventListener("hashchange", () => showTab(location.hash.slice(1) || "live"));
+window.addEventListener("hashchange", () => showTab(location.hash.slice(1) || "match"));
 $("tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) showTab(b.dataset.tab); });
 $("tenant").value = store.get("kc-tenant", "default");
 $("tenant").onchange = () => { store.set("kc-tenant", $("tenant").value); loadHitl(); };
@@ -616,7 +712,7 @@ async function cardAction(tool, card, btn) {
       if (!r.ok) throw new Error("HTTP " + r.status);
       addMedia(`<div><img src="${URL.createObjectURL(await r.blob())}"><div class="hint">обложка · ${r.headers.get("X-Cache")} · $${r.headers.get("X-Cost-USD")}</div></div>`, "thumb");
     } else if (tool === "tts_bumper") {
-      const r = await api("/v1/media/tts", { method: "POST", raw: true, body: { text: card.headline } });
+      const r = await api("/v1/media/tts", { method: "POST", raw: true, body: { text: card.headline, voice: currentVoice() } });
       if (!r.ok) throw new Error("HTTP " + r.status);
       addMedia(`<div><audio controls autoplay src="${URL.createObjectURL(await r.blob())}"></audio><div class="hint">отбивка 8 с · $${r.headers.get("X-Cost-USD")}</div></div>`, "tts");
     } else if (tool === "publish_social") {
@@ -741,6 +837,123 @@ $("job-csv").onclick = async () => {
   const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = `highlights_${lastJob.job_id}.csv`; a.click();
 };
 
+/* ======================================================= MATCH LIVE */
+const HERO_COLORS = { Vex: "rgb(200,60,200)", Rook: "rgb(60,160,220)", Nyra: "rgb(240,120,160)", Kade: "rgb(80,200,120)", Sol: "rgb(250,130,40)", Mira: "rgb(150,110,60)" };
+const HL_KIND = { first_blood: "Первая кровь", double_kill: "Двойное убийство", triple_kill: "Тройное убийство", killing_spree: "Серия убийств",
+  shutdown: "Серия прервана", ace: "Эйс", one_man_wipe: "В одиночку — вся команда", fast_tower: "Быстрая башня", lane_rush: "Снос линии" };
+const tier = (h) => h >= 90 ? "#7c3aed" : h >= 75 ? "#e5484d" : h >= 60 ? "#f08c00" : "#adb5bd";
+const M = { playing: false, i: 0, frames: 0, folder: "", hls: [], audioQ: [], speaking: false, maxT: 1080, bannerTimer: null, announced: 0 };
+
+function mFramePath(i) { return `${M.folder}/frame_${String(i).padStart(3, "0")}.png`; }
+function mSetup() {
+  const vods = fixtures.vod.filter((v) => !v.folder.includes("patch"));
+  $("m-vod").innerHTML = (vods.length ? vods : fixtures.vod).map((v) => `<option value="${esc(v.folder)}" data-n="${v.frames}">${esc(v.folder.split("/").pop())} · ${v.frames} кадров</option>`).join("")
+    || `<option value="">нет записи — scripts/make_fixtures.py --only vod</option>`;
+  $("m-vod").onchange = () => mReset();
+  $("m-voice-pick").innerHTML = $("tts-voice").innerHTML;
+  $("m-voice-pick").value = [...$("m-voice-pick").options].some((o) => o.value === "v5_6_ru/romchik") ? "v5_6_ru/romchik" : $("m-voice-pick").value;
+  mReset();
+}
+async function mReset() {
+  M.playing = false; M.i = 0; M.hls = []; M.audioQ = []; M.announced = 0;
+  const opt = $("m-vod").selectedOptions[0]; M.folder = opt ? opt.value : ""; M.frames = opt ? +opt.dataset.n : 0;
+  $("m-play").innerHTML = '<svg class="i"><use href="#i-play"/></svg> Запустить эфир';
+  $("m-feed").innerHTML = `<div class="empty"><div class="big"><svg class="i"><use href="#i-bolt"/></svg></div>Нажмите «Запустить эфир»</div>`;
+  ["m-count", "m-kills", "m-announced"].forEach((id) => $(id).textContent = "0");
+  $("m-fill").style.width = "0"; $("m-timeline").querySelectorAll(".mk,.lbl").forEach((e) => e.remove());
+  $("m-banner").classList.remove("show"); $("m-clock").textContent = "0:00"; $("m-score").textContent = "0 : 0";
+  if (M.folder) { $("m-frame").src = fileUrl(mFramePath(0)); await api(`/v1/match/${matchId()}/reset`, { method: "POST" }); }
+  mTimelineLabels();
+}
+const matchId = () => (M.folder.split("/").pop() || "match").replace(/[^A-Za-z0-9_-]/g, "_");
+function mTimelineLabels() {
+  for (let m = 0; m <= M.maxT; m += 180) {
+    const el = document.createElement("div"); el.className = "lbl"; el.style.left = (m / M.maxT * 100) + "%"; el.textContent = `${m / 60}:00`; $("m-timeline").append(el);
+  }
+}
+async function mTick() {
+  if (!M.playing) return;
+  if (M.i >= M.frames) { M.playing = false; $("m-play").innerHTML = '<svg class="i"><use href="#i-play"/></svg> Эфир окончен'; $("m-rec").textContent = "ЗАПИСЬ"; return; }
+  const i = M.i++, path = mFramePath(i), t0 = performance.now();
+  try {
+    $("m-frame").src = fileUrl(path);
+    const { data } = await api(`/v1/match/${matchId()}/frame`, { method: "POST",
+      body: { image_b64: await pathB64(path), frame: i, announce: $("m-voice").checked, voice: $("m-voice-pick").value } });
+    mRender(data);
+  } catch (e) { toast("Ошибка кадра: " + e.message); M.playing = false; return; }
+  setTimeout(mTick, Math.max(0, +$("m-speed").value - (performance.now() - t0)));
+}
+function mRender(d) {
+  if (d.clock) $("m-clock").textContent = d.clock;
+  if (d.score) $("m-score").textContent = d.score.replace(":", " : ");
+  $("m-kills").textContent = d.kills; $("m-latency").textContent = Math.round(d.latency_s * 1000) + " мс";
+  if (d.game_time != null) $("m-fill").style.width = Math.min(100, d.game_time / M.maxT * 100) + "%";
+  $("m-killfeed").innerHTML = (d.kill_feed || []).length ? d.kill_feed.map(([k, v]) =>
+    `<div class="feedrow"><span class="hero-dot" style="background:${HERO_COLORS[k]}"></span><b>${esc(k)}</b> → <span class="hero-dot" style="background:${HERO_COLORS[v]}"></span>${esc(v)}</div>`).join("")
+    : '<span class="hint">тихо</span>';
+  if (d.towers) {
+    const team = { nova: "Team Nova", owls: "Iron Owls" };
+    $("m-towers").innerHTML = '<span></span><span class="hint">верх</span><span class="hint">центр</span><span class="hint">низ</span>' +
+      Object.entries(d.towers).map(([t, lanes]) => `<b>${team[t]}</b>` + ["top", "mid", "bot"].map((l) =>
+        `<div class="tw">${[0, 1].map((k) => `<i style="${k < lanes[l] ? `background:${t === "nova" ? "rgb(70,110,255)" : "rgb(255,150,40)"}` : ""}"></i>`).join("")}</div>`).join("")).join("");
+  }
+  for (const h of d.highlights) mAddHighlight(h);
+}
+function mAddHighlight(h) {
+  if (!M.hls.length) $("m-feed").innerHTML = "";
+  M.hls.push(h); $("m-count").textContent = M.hls.length;
+  const c = tier(h.hype), merged = h.details && h.details.merged_into;
+  const el = document.createElement("div");
+  el.className = "hl" + (h.should_announce ? "" : " quiet"); el.style.setProperty("--tier", c);
+  el.innerHTML = `<div class="t">${esc(h.clock)}</div>
+    <div><div class="h">${esc(h.title)}</div><div class="meta"><span class="pill" style="color:${c}">${esc(HL_KIND[h.type] || h.type)}</span>
+      <span class="bar"><i style="width:${Math.min(100, h.hype)}%"></i></span><span class="hint mono">${h.hype}</span>
+      ${h.record ? '<span class="pill warn">рекорд</span>' : ""}${merged ? '<span class="hint">в составе момента выше</span>' : ""}</div></div>
+    <div>${h.audio_url ? `<button class="btn sm" title="Повторить озвучку"><svg class="i"><use href="#i-volume"/></svg></button>` : ""}</div>`;
+  if (h.audio_url) el.querySelector("button").onclick = () => mSpeak(h.audio_url);
+  $("m-feed").prepend(el);
+  const mk = document.createElement("div");
+  mk.className = "mk" + (h.should_announce ? "" : " small"); mk.style.setProperty("--tier", c);
+  mk.style.left = Math.min(100, h.game_time / M.maxT * 100) + "%"; mk.title = `${h.clock} · ${h.title}`;
+  $("m-timeline").append(mk);
+  if (h.should_announce) {
+    M.announced++; $("m-announced").textContent = M.announced;
+    mBanner(h, c);
+    if (h.audio_url) mSpeak(h.audio_url);
+  }
+}
+function mBanner(h, c) {
+  const b = $("m-banner");
+  b.style.setProperty("--tier", c);
+  $("m-kind").textContent = (HL_KIND[h.type] || h.type) + (h.record ? " · рекорд турнира" : "");
+  $("m-title").textContent = h.title;
+  $("m-sub").textContent = `${h.clock} · hype ${h.hype}` + (h.details && h.details.also ? " · ещё: " + h.details.also.map((x) => HL_KIND[x] || x).join(", ") : "");
+  b.classList.add("show"); clearTimeout(M.bannerTimer);
+  M.bannerTimer = setTimeout(() => b.classList.remove("show"), 4200);
+}
+async function mSpeak(url) {
+  M.audioQ.push(url);
+  if (M.speaking) return;
+  M.speaking = true;
+  while (M.audioQ.length) {
+    const u = M.audioQ.shift();
+    try {
+      const blob = await (await api(u, { raw: true })).blob();
+      await new Promise((res) => { const a = new Audio(URL.createObjectURL(blob)); a.onended = res; a.onerror = res; a.play().catch(res); });
+    } catch {}
+  }
+  M.speaking = false;
+}
+$("m-play").onclick = () => {
+  if (!M.folder) return;
+  if (M.i >= M.frames) { mReset().then(() => $("m-play").click()); return; }
+  M.playing = !M.playing;
+  $("m-rec").textContent = "LIVE";
+  $("m-play").innerHTML = M.playing ? '<svg class="i"><use href="#i-pause"/></svg> Пауза' : '<svg class="i"><use href="#i-play"/></svg> Продолжить';
+  if (M.playing) mTick();
+};
+$("m-restart").onclick = () => mReset();
+
 /* ======================================================= MICROPHONE -> WAV 16 kHz */
 function encodeWav(samples, sr) {
   const buf = new ArrayBuffer(44 + samples.length * 2), v = new DataView(buf);
@@ -803,10 +1016,32 @@ async function showStt(b64) {
 $("stt-rec").onclick = () => toggleRecord($("stt-rec"), async (wav) => showStt(await toB64(wav)));
 $("stt-run").onclick = async () => { if ($("stt-fixture").value) showStt(await pathB64($("stt-fixture").value)); };
 
+/* ======================================================= VOICES */
+const VOICE_NAMES = { oleg: "Олег · низкий", romchik: "Ромчик · бодрый", synthetic: "заглушка" };
+async function loadVoices() {
+  try {
+    const { data } = await api("/v1/media/voices");
+    const opts = [];
+    for (const [model, speakers] of Object.entries(data.models)) speakers.forEach((sp) => opts.push([`${model}/${sp}`, `${VOICE_NAMES[sp] || sp} — ${model}`]));
+    const saved = store.get("kc-voice", data.default);
+    $("tts-voice").innerHTML = opts.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("");
+    $("tts-voice").value = opts.some(([v]) => v === saved) ? saved : data.default;
+    $("voice-grid").innerHTML = opts.map(([v]) => {
+      const [model, sp] = v.split("/");
+      return `<button class="btn sm" data-v="${esc(v)}"><svg class="i"><use href="#i-play"/></svg>${esc(VOICE_NAMES[sp] || sp)}<small>${esc(model.replace("_ru", ""))}</small></button>`;
+    }).join("");
+    markVoice();
+    $("voice-grid").querySelectorAll("[data-v]").forEach((b) => b.onclick = () => { $("tts-voice").value = b.dataset.v; $("tts-voice").onchange(); $("tts-run").click(); });
+  } catch {}
+}
+function markVoice() { $("voice-grid").querySelectorAll("[data-v]").forEach((b) => b.classList.toggle("cur", b.dataset.v === $("tts-voice").value)); }
+$("tts-voice").onchange = () => { store.set("kc-voice", $("tts-voice").value); markVoice(); };
+const currentVoice = () => $("tts-voice").value || "";
+
 /* ======================================================= MEDIA */
 $("tts-run").onclick = async () => {
   const t0 = performance.now();
-  const r = await api("/v1/media/tts", { method: "POST", raw: true, body: { text: $("tts-text").value } });
+  const r = await api("/v1/media/tts", { method: "POST", raw: true, body: { text: $("tts-text").value, voice: currentVoice() } });
   if (!r.ok) { const d = await r.json(); toast("Отклонено: " + d.detail); return; }
   const reader = r.body.getReader(), chunks = []; let ttfb = null;
   for (;;) { const { done, value } = await reader.read(); if (done) break; if (ttfb === null) ttfb = performance.now() - t0; chunks.push(value); }
@@ -969,8 +1204,8 @@ async function refreshMonitor() {
     $("vod").onchange = () => { $("vod-match").value = $("vod").value.split("/").pop(); };
     applyPreset(PRESETS[0], false);
   } catch (e) { toast("Не удалось загрузить фикстуры: " + e.message); }
-  loadRegistry(); loadHitl();
-  showTab((location.hash || "#live").slice(1).replace("dashboard", "monitor") || "live");
+  loadRegistry(); loadHitl(); await loadVoices(); mSetup();
+  showTab((location.hash || "#match").slice(1).replace("dashboard", "monitor") || "match");
   setInterval(refreshStatus, 5000);
   setInterval(() => { if ($("tab-monitor").classList.contains("active")) refreshMonitor(); }, 3000);
   setInterval(loadHitl, 7000);

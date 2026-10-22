@@ -157,6 +157,8 @@ class Pipeline:
             "event": vlm.event if vlm.game == "arena_clash" else "none",
             "hero": vlm.hero,
             "hud_confidence": vlm.hud_confidence,
+            "kill_feed": vlm.kill_feed,
+            "towers": vlm.towers,
             "caster": mentions.to_dict(),  # подсказка, НЕ источник счёта
         }
         return Analysis(inp, verdict, vlm, transcript, mentions, data, facts, cost, shadow)

@@ -30,3 +30,26 @@ cost:                       # $ за единицу (оценочные, для 
 serving:
   tts_seconds: 8
   sample_rate: 16000
+
+highlights:                 # движок хайлайтов (app/highlights.py)
+  chain_window_s: 10        # убийства одного игрока с паузой ≤ N с — одна серия (дабл/трипл)
+  ace_window_s: 15          # все трое соперников убиты за N с — эйс
+  one_man_window_s: 8       # один игрок забрал всех троих за N с — «в одиночку с одного прокаста»
+  spree_kills: 3            # столько убийств без смерти — серия
+  fast_tower_s: 150         # первая башня матча раньше N с — «рекордно быстро»
+  lane_rush_s: 120          # линия снесена целиком за N с от первой башни — «снос линии»
+  announce_threshold: 60    # озвучиваем только моменты с hype ≥ N
+  records:                  # рекорды турнира (бьём — бонус и «новый рекорд!»)
+    first_tower_s: 130
+    lane_rush_s: 90
+  hype:
+    first_blood: 45
+    double_kill: 50
+    triple_kill: 75
+    killing_spree: 60
+    shutdown: 65
+    ace: 85
+    one_man_wipe: 100
+    fast_tower: 70
+    lane_rush: 80
+    record_bonus: 10

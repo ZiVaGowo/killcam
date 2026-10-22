@@ -210,41 +210,89 @@ def make_golden(seed0: int) -> None:
          "audio": audio("mm05", "Рук забирает килл", seed=105), "chat": [], "expect": {"score": None, "needs_review": True}},
     ]
     write_jsonl(GOLD / "multimodal.jsonl", mm)
+
+    # ---------------------------------------------------------------- хайлайты сценарного матча
+    write_jsonl(GOLD / "match_final_g5.jsonl", [
+        {"type": typ, "game_time": t, "who": who} for typ, t, who in MATCH_EXPECTED
+    ])
     print(f"golden: {len(screens)} screens, {len(audio_cases)} audio, {len(chat_cases)} chat, "
           f"{len(redteam)} red-team, {len(mm)} multimodal")
 
 
+# ------------------------------------------------------------------ сценарий матча «финал, игра 5»
+# Убийства (время, убийца, жертва) и снесённые башни (время, чья башня, линия). Кадры — каждые 2 с
+# вокруг событий + раз в 30 с между ними: как нарезка VOD, где ничего не происходит, — разреженно.
+MATCH_KILLS = [
+    (70, "Rook", "Kade"),                                          # первая кровь
+    (300, "Nyra", "Vex"), (302, "Nyra", "Sol"),                    # дабл Найры
+    (420, "Kade", "Rook"),
+    (540, "Vex", "Nyra"), (543, "Vex", "Kade"), (546, "Vex", "Mira"),  # Векс в одиночку забирает всех за 6 с
+    (610, "Sol", "Mira"), (640, "Sol", "Kade"), (700, "Sol", "Nyra"),   # серия Сола (паузы большие — не мультикилл)
+    (760, "Kade", "Sol"),                                          # Кейд прерывает серию
+    (1000, "Mira", "Rook"), (1003, "Mira", "Vex"),                 # дабл Миры
+]
+MATCH_TOWERS = [
+    (115, "owls", "top"), (175, "owls", "top"),                    # быстрая башня + снос линии за 60 с (рекорды)
+    (880, "nova", "bot"), (1050, "nova", "bot"),                   # линия за 170 с — НЕ хайлайт
+]
+MATCH_UNREADABLE = {702, 1002}                                     # смазанный таймер внутри событий
+# Что движок обязан найти: (тип, время обнаружения на кадре, главный игрок или команда)
+MATCH_EXPECTED = [
+    ("first_blood", 70, "Rook"), ("fast_tower", 116, "nova"), ("lane_rush", 176, "nova"),
+    ("double_kill", 302, "Nyra"), ("double_kill", 544, "Vex"), ("triple_kill", 546, "Vex"),
+    ("killing_spree", 546, "Vex"), ("ace", 546, "nova"), ("one_man_wipe", 546, "Vex"),
+    ("killing_spree", 700, "Sol"), ("shutdown", 760, "Kade"), ("double_kill", 1004, "Mira"),
+    ("shutdown", 1004, "Mira"),                                    # Мира обрывает серию Векса (3 убийства на 9:06)
+]
+
+
+def match_frame_times() -> list[int]:
+    times = set(range(0, 1081, 30))
+    for t in [k[0] for k in MATCH_KILLS] + [x[0] for x in MATCH_TOWERS]:
+        start = (t - 6) // 2 * 2
+        times.update(range(max(0, start), t + 9, 2))
+    return sorted(times)
+
+
+def match_frame(ft: int, seed: int) -> FrameSpec:
+    from app.backends.hud import TEAM_OF, all_towers
+
+    done = [k for k in MATCH_KILLS if k[0] <= ft]
+    nova = sum(1 for _, killer, _ in done if TEAM_OF[killer] == "nova")
+    feed = [(killer, victim) for kt, killer, victim in reversed(done) if ft - kt < 6][:3]
+    towers = all_towers()
+    for tt, owner, lane in MATCH_TOWERS:
+        if tt <= ft:
+            towers[owner][lane] -= 1
+    recent_kill = [k for k in done if ft - k[0] < 2]
+    recent_tower = [x for x in MATCH_TOWERS if 0 <= ft - x[0] < 2]
+    event = "kill" if recent_kill else "objective" if recent_tower else "none"
+    hero = recent_kill[-1][1] if recent_kill else (done[-1][1] if done else "Vex")
+    return FrameSpec(f"{nova}:{len(done) - nova}", f"{ft // 60}:{ft % 60:02d}", hero, event,
+                     unreadable=ft in MATCH_UNREADABLE, seed=seed, kill_feed=feed, towers=towers)
+
+
 def make_vod(params: dict, seed0: int) -> None:
-    # ---------------------------------------------------------------- VOD: финал, 100 кадров (DVC)
-    n = params["fixtures"]["vod_frames"]
-    heroes = ["Vex", "Rook", "Nyra", "Kade", "Sol", "Mira"]
-    a, b = 0, 0
     vod_dir = VOD / "final_g5"
+    if vod_dir.exists():
+        for old in vod_dir.glob("frame_*.png"):
+            old.unlink()
     vod_dir.mkdir(parents=True, exist_ok=True)
     manifest = []
-    for i in range(n):
-        minute, sec = divmod(600 + i * 12, 60)
-        timer = f"{minute}:{sec:02d}"
-        roll = (i * 37 + seed0) % 100
-        event = "kill" if roll < 28 else "objective" if roll < 38 else "none"
-        hero = heroes[(i * 7) % len(heroes)]
-        if event == "kill":
-            if hero in ("Vex", "Rook", "Sol"):
-                a += 1
-            else:
-                b += 1
-        spec = FrameSpec(f"{a}:{b}", timer, hero, event, unreadable=(i % 23 == 22), seed=seed0 + 1000 + i)
+    for i, ft in enumerate(match_frame_times()):
+        spec = match_frame(ft, seed0 + 1000 + i)
         (vod_dir / f"frame_{i:03d}.png").write_bytes(to_png_bytes(render_frame(spec)))
-        manifest.append({"frame": i, **expect_from(spec)})
+        manifest.append({"frame": i, "game_time": ft, "kill_feed": spec.kill_feed, **expect_from(spec)})
     write_jsonl(vod_dir / "manifest.jsonl", manifest)
 
+    heroes = ["Vex", "Rook", "Nyra", "Kade", "Sol", "Mira"]
     patch_dir = VOD / "after_patch_7_36"
     patch_dir.mkdir(parents=True, exist_ok=True)
     for i in range(40):
         spec = FrameSpec(f"{i // 5}:{i // 7}", f"{10 + i // 4}:{(i * 13) % 60:02d}", heroes[i % 6], "kill" if i % 3 == 0 else "none",
                          patch="7.36", seed=seed0 + 5000 + i)
         (patch_dir / f"frame_{i:03d}.png").write_bytes(to_png_bytes(render_frame(spec)))
-    print(f"VOD: {n} frames + 40 after-patch frames")
+    print(f"VOD: final_g5 {len(manifest)} frames (scripted match) + 40 after-patch frames")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Batch ночных VOD: 100 скринов → таблица хайлайтов.
+"""Batch ночных VOD: запись матча → лента хайлайтов (мультикиллы, эйсы, снос линий, рекорды).
 
 Очередь: Redis (docker-compose, отдельный контейнер-воркер, можно на GPU) или in-memory
 (поток внутри API — для локального запуска и тестов). Задачи изолированы по тенанту.
@@ -17,12 +17,13 @@ import time
 import uuid
 from typing import Protocol
 
+from app.highlights import MatchEngine, RecordStore
 from app.media import ThumbnailCache
 from app.monitoring.cost import CostMeter
 from app.monitoring.metrics import QUEUE_DEPTH, STORE
 from app.pipeline import MomentInput, Pipeline
 
-HIGHLIGHT_COLUMNS = ["frame", "timestamp", "event", "hero", "score", "headline", "needs_review", "thumbnail_cached", "cost_usd"]
+HIGHLIGHT_COLUMNS = ["frame", "clock", "type", "hype", "title", "players", "record", "should_announce", "thumbnail_cached"]
 
 
 class JobQueue(Protocol):
@@ -116,38 +117,41 @@ def make_queue(redis_url: str) -> JobQueue:
     return RedisQueue(redis_url) if redis_url else MemoryQueue()
 
 
+def make_engine(pipeline: Pipeline, match_id: str) -> MatchEngine:
+    cfg = pipeline.settings.params["highlights"]
+    return MatchEngine(match_id, cfg, RecordStore(cfg["records"], pipeline.settings.runtime_dir / "records.json"))
+
+
 async def process_job(job: dict, payload: dict, pipeline: Pipeline, jq: JobQueue, thumbs: ThumbnailCache | None) -> dict:
+    """Запись матча -> движок хайлайтов. На каждом кадре только VLM (дёшево), LLM не нужен:
+    хайлайт рождается из истории матча, а не из одного кадра."""
     job["status"] = "running"
     jq.update(job)
     total_cost = 0.0
+    engine = make_engine(pipeline, payload["match_id"])
+    bundle = pipeline.bundle()
     try:
         for i, item in enumerate(payload["items"]):
-            inp = MomentInput(
-                match_id=payload["match_id"],
-                image=base64.b64decode(item["image_b64"]),
-                audio=base64.b64decode(item["audio_b64"]) if item.get("audio_b64") else None,
-                highlights_only=True,
-            )
-            res = await pipeline.run(inp)
-            frame_cost = res.cost_usd
-            if res.card and not res.skipped:
-                cached = None
-                if payload.get("make_thumbnails") and thumbs is not None and res.card.get("timestamp"):
-                    c = res.card
-                    _, cached = thumbs.get_or_render(job["tenant"], c["match_id"], c["timestamp"], c["event"], c["hero"], c["score"])
+            inp = MomentInput(match_id=payload["match_id"], image=base64.b64decode(item["image_b64"]))
+            a = await asyncio.to_thread(pipeline.analyze, inp, bundle)
+            total_cost += a.cost.total
+            for h in engine.ingest(a.facts, frame=i):
+                row = h.to_dict()
+                row["thumbnail_cached"] = None
+                if payload.get("make_thumbnails") and thumbs is not None and h.hype >= engine.cfg["announce_threshold"]:
+                    event = "objective" if h.type in ("fast_tower", "lane_rush") else "kill"
+                    _, cached = thumbs.get_or_render(job["tenant"], payload["match_id"], h.clock, event,
+                                                     h.players[0] if h.players else None, a.facts.get("score"))
+                    row["thumbnail_cached"] = cached
                     if not cached:
-                        frame_cost += CostMeter().image_gen()
-                job["highlights"].append({
-                    "frame": i, "timestamp": res.card["timestamp"] or item.get("timestamp_hint"), "event": res.card["event"],
-                    "hero": res.card["hero"], "score": res.card["score"], "headline": res.card["headline"],
-                    "needs_review": res.card["needs_review"], "thumbnail_cached": cached, "cost_usd": round(frame_cost, 6),
-                })
-            total_cost += frame_cost
+                        total_cost += CostMeter().image_gen()
+                job["highlights"].append(row)
             job["processed"] = i + 1
             job["cost_usd"] = round(total_cost, 6)
             if i % 10 == 0:
                 jq.update(job)
         job["status"] = "done"
+        job["summary"] = {k: v for k, v in engine.summary().items() if k != "highlights"}
         job["cost_per_highlight_usd"] = round(total_cost / max(1, len(job["highlights"])), 6)
         STORE.add_highlights(len(job["highlights"]), total_cost)
     except Exception as e:  # noqa: BLE001 — статус задачи должен отразить любую ошибку
@@ -162,7 +166,7 @@ def highlights_csv(job: dict) -> str:
     w = csv.DictWriter(buf, fieldnames=HIGHLIGHT_COLUMNS)
     w.writeheader()
     for h in job["highlights"]:
-        w.writerow({k: h.get(k) for k in HIGHLIGHT_COLUMNS})
+        w.writerow({k: ("+".join(h[k]) if isinstance(h.get(k), list) else h.get(k)) for k in HIGHLIGHT_COLUMNS})
     return buf.getvalue()
 
 

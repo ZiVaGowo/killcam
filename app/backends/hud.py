@@ -11,7 +11,7 @@ VLM, настроенный на 7.35, перестаёт читать счёт,
 from __future__ import annotations
 
 import io
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
@@ -56,6 +56,21 @@ GAME_MARKERS: dict[str, list[tuple[int, int, int]]] = {
     "hex_legends": [(0, 200, 80), (0, 90, 40), (0, 200, 80)],  # «чужая игра»
 }
 
+# Arena Clash — 3 на 3. Команда определяет, кто кому враг (эйс = убиты все трое соперников).
+TEAMS: dict[str, list[str]] = {"nova": ["Vex", "Rook", "Sol"], "owls": ["Nyra", "Kade", "Mira"]}
+TEAM_OF = {h: t for t, hs in TEAMS.items() for h in hs}
+TEAM_COLORS: dict[str, tuple[int, int, int]] = {"nova": (70, 110, 255), "owls": (255, 150, 40)}
+TOWER_DEAD = (38, 38, 42)
+LANES = ["top", "mid", "bot"]
+TOWERS_PER_LANE = 2
+FEED_ROWS = 3
+SKULL = (240, 240, 240)
+PLATE = (14, 14, 20)
+
+
+def all_towers() -> dict[str, dict[str, int]]:
+    return {t: {lane: TOWERS_PER_LANE for lane in LANES} for t in TEAMS}
+
 
 @dataclass(frozen=True)
 class HudLayout:
@@ -67,6 +82,8 @@ class HudLayout:
     timer_xy: tuple[int, int]
     event_box: tuple[int, int, int, int]
     hero_box: tuple[int, int, int, int]
+    feed_xy: tuple[int, int]      # лента убийств: левый верх первой (самой свежей) строки
+    towers_xy: tuple[int, int]    # мини-карта башен: 2 ряда (команды) × 6 блоков (линии × башни)
 
 
 LAYOUTS: dict[str, HudLayout] = {
@@ -79,6 +96,8 @@ LAYOUTS: dict[str, HudLayout] = {
         timer_xy=(250, 4),
         event_box=(8, 34, 24, 50),
         hero_box=(30, 34, 46, 50),
+        feed_xy=(240, 28),
+        towers_xy=(6, 160),
     ),
     # Патч: HUD уехал вниз, бар стал фиолетовым, килфид справа.
     "7.36": HudLayout(
@@ -90,6 +109,8 @@ LAYOUTS: dict[str, HudLayout] = {
         timer_xy=(140, H - 18),
         event_box=(W - 46, 34, W - 30, 50),
         hero_box=(W - 24, 34, W - 8, 50),
+        feed_xy=(10, 60),
+        towers_xy=(W - 56, 30),
     ),
 }
 
@@ -107,6 +128,27 @@ class FrameSpec:
     unreadable: bool = False      # нечитаемый HUD (блюр/шум/перекрытие)
     fake_overlay: str | None = None  # оверлей стримера с фейковым счётом/текстом
     seed: int = 0
+    kill_feed: list[tuple[str, str]] = field(default_factory=list)  # (убийца, жертва), свежие сверху
+    towers: dict[str, dict[str, int]] | None = None                 # живых башен по командам/линиям
+
+
+def feed_row_boxes(lay: HudLayout, i: int) -> dict[str, tuple[int, int, int, int]]:
+    """Геометрия строки ленты убийств — общая для рендера и для VLM."""
+    fx, fy = lay.feed_xy
+    y = fy + i * 16
+    return {
+        "plate": (fx - 4, y - 2, fx + 47, y + 13),
+        "killer": (fx, y, fx + 12, y + 11),
+        "skull": (fx + 17, y + 2, fx + 24, y + 9),
+        "victim": (fx + 30, y, fx + 42, y + 11),
+    }
+
+
+def tower_box(lay: HudLayout, team: str, lane: str, k: int) -> tuple[int, int, int, int]:
+    tx, ty = lay.towers_xy
+    x = tx + (LANES.index(lane) * TOWERS_PER_LANE + k) * 8
+    y = ty + list(TEAMS).index(team) * 9
+    return (x, y, x + 5, y + 5)
 
 
 def draw_text(img: Image.Image, text: str, xy: tuple[int, int], color=(255, 255, 255), scale: int = SCALE) -> None:
@@ -155,6 +197,17 @@ def render_frame(spec: FrameSpec) -> Image.Image:
     draw_text(img, spec.timer, lay.timer_xy)
     d.rectangle(lay.event_box, fill=EVENTS[spec.event])
     d.rectangle(lay.hero_box, fill=HEROES[spec.hero])
+    for i, (killer, victim) in enumerate(spec.kill_feed[:FEED_ROWS]):
+        b = feed_row_boxes(lay, i)
+        d.rectangle(b["plate"], fill=PLATE)
+        d.rectangle(b["killer"], fill=HEROES[killer])
+        d.rectangle(b["skull"], fill=SKULL)
+        d.rectangle(b["victim"], fill=HEROES[victim])
+    alive = spec.towers or all_towers()
+    for team in TEAMS:
+        for lane in LANES:
+            for k in range(TOWERS_PER_LANE):
+                d.rectangle(tower_box(lay, team, lane, k), fill=TEAM_COLORS[team] if k < alive[team][lane] else TOWER_DEAD)
     if spec.unreadable:
         # Смазываем зону счёта/таймера (маркер игры остаётся читаемым)
         _, y0, x1, y1 = lay.bar_box

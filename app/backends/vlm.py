@@ -18,7 +18,22 @@ from dataclasses import asdict, dataclass, field
 import numpy as np
 from PIL import Image
 
-from app.backends.hud import EVENTS, GAME_MARKERS, GLYPH_ARR, HEROES, LAYOUTS, PITCH, SCALE
+from app.backends.hud import (
+    EVENTS,
+    FEED_ROWS,
+    GAME_MARKERS,
+    GLYPH_ARR,
+    HEROES,
+    LANES,
+    LAYOUTS,
+    PITCH,
+    SCALE,
+    TEAM_COLORS,
+    TEAMS,
+    TOWERS_PER_LANE,
+    feed_row_boxes,
+    tower_box,
+)
 
 SCORE_RE = re.compile(r"^\d{1,2}:\d{1,2}$")
 TIMER_RE = re.compile(r"^\d{1,2}:\d{2}$")
@@ -35,6 +50,8 @@ class VLMFacts:
     overlay_text: str | None = None  # текст оверлеев стрима (OCR) — недоверенные данные!
     vlm_version: str = ""
     is_kill: bool = False
+    kill_feed: list[list[str]] | None = None          # [[убийца, жертва], ...] — свежие сверху
+    towers: dict[str, dict[str, int]] | None = None   # живых башен: {"nova": {"top": 2, ...}, ...}
     extra: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -106,6 +123,38 @@ class ScoreOCRVLM:
             return "unknown", 0.0
         return best, 1.0 - best_d / 45
 
+    @staticmethod
+    def _mean(arr: np.ndarray, box: tuple[int, int, int, int]) -> np.ndarray:
+        x0, y0, x1, y1 = box
+        return arr[y0 : y1 + 1, x0 : x1 + 1].reshape(-1, 3).mean(axis=0)
+
+    def _kill_feed(self, arr: np.ndarray) -> list[list[str]]:
+        rows = []
+        for i in range(FEED_ROWS):
+            b = feed_row_boxes(self.layout, i)
+            px0, py0, _, py1 = b["plate"]
+            plate = arr[py0 : py1 + 1, px0 : px0 + 3].reshape(-1, 3).mean(axis=0)
+            skull = self._mean(arr, b["skull"])
+            if plate.max() > 40 or skull.min() < 215:  # нет подложки/черепа — строки нет
+                break
+            killer, _ = _nearest(self._mean(arr, b["killer"]), HEROES, 45)
+            victim, _ = _nearest(self._mean(arr, b["victim"]), HEROES, 45)
+            if killer and victim:
+                rows.append([killer, victim])
+        return rows
+
+    def _towers(self, arr: np.ndarray) -> dict[str, dict[str, int]]:
+        out: dict[str, dict[str, int]] = {}
+        for team in TEAMS:
+            out[team] = {}
+            for lane in LANES:
+                alive = 0
+                for k in range(TOWERS_PER_LANE):
+                    c = self._mean(arr, tower_box(self.layout, team, lane, k))
+                    alive += float(np.linalg.norm(c - np.array(TEAM_COLORS[team]))) < 60
+                out[team][lane] = alive
+        return out
+
     def extract(self, image_bytes: bytes) -> VLMFacts:
         img, info = load_image(image_bytes)
         if img.size != (320, 180):
@@ -126,6 +175,8 @@ class ScoreOCRVLM:
         facts.event, e_conf = _nearest(arr[ey0:ey1, ex0:ex1].reshape(-1, 3).mean(axis=0), EVENTS, 60)
         facts.hero, h_conf = _nearest(arr[hy0:hy1, hx0:hx1].reshape(-1, 3).mean(axis=0), HEROES, 50)
         facts.is_kill = facts.event == "kill"
+        facts.kill_feed = self._kill_feed(arr)
+        facts.towers = self._towers(arr)
         facts.hud_confidence = round(min(game_conf, s_conf, t_conf, e_conf or 0.0) if facts.score else 0.0, 3)
         if facts.score is None:
             facts.extra["reason"] = "hud_unreadable"

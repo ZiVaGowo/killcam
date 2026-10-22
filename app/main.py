@@ -33,6 +33,7 @@ from app.backends.stt import extract_mentions, get_stt
 from app.backends.tts import get_tts
 from app.batch import InlineWorker, highlights_csv, make_queue
 from app.config import ROOT, Settings, get_settings
+from app.highlights import MatchHub, RecordStore
 from app.media import ThumbnailCache, stream_bytes, synth_bumper
 from app.monitoring.cost import CostMeter
 from app.monitoring.drift import DriftMonitor
@@ -42,6 +43,7 @@ from app.registry import Registry, RegistryError
 from app.schemas import (
     BatchRequest,
     ChatCompletionRequest,
+    MatchFrameRequest,
     PromoteRequest,
     RegisterRequest,
     ThumbnailRequest,
@@ -80,6 +82,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.queue = make_queue(s.redis_url)
     app.state.thumbs = ThumbnailCache(s.runtime_dir)
     app.state.hitl = HITLQueue(s.runtime_dir / "hitl.json")
+    hl_cfg = s.params["highlights"]
+    app.state.matches = MatchHub(hl_cfg, RecordStore(hl_cfg["records"], s.runtime_dir / "records.json"))
 
     # ------------------------------------------------------------ deps
     def tenant(x_tenant_id: str = Header(default="default")) -> str:
@@ -291,7 +295,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(400, "текст отбивки не прошёл guard")
         t0 = time.perf_counter()
         cfg = s.params["serving"]
-        audio = synth_bumper(redact_pii(req.text), cfg["tts_seconds"], get_tts(s.tts_backend, s.device))
+        audio = synth_bumper(redact_pii(req.text), cfg["tts_seconds"], get_tts(s.tts_backend, s.device), req.voice or None)
         cost = CostMeter().tts(len(req.text))
 
         def gen():
@@ -305,6 +309,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 yield part
 
         return StreamingResponse(gen(), media_type="audio/wav", headers={"X-Cost-USD": f"{cost:.6f}", "X-Duration-S": str(cfg["tts_seconds"])})
+
+    @app.get("/v1/media/voices")
+    def voices():
+        return get_tts(s.tts_backend, s.device).voices()
 
     @app.post("/v1/media/stt")
     async def stt(body: dict, _t: str = Depends(tenant)):
@@ -398,6 +406,60 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return app.state.registry.rollback()
         except RegistryError as e:
             raise HTTPException(409, str(e)) from e
+
+    # ------------------------------------------------------------ живой матч: хайлайты + голос
+    def match_id_ok(match_id: str) -> str:
+        if not TENANT_RE.match(match_id):
+            raise HTTPException(400, "bad match_id")
+        return match_id
+
+    @app.post("/v1/match/{match_id}/frame")
+    async def match_frame(match_id: str, body: MatchFrameRequest, t: str = Depends(tenant)):
+        """Очередной кадр трансляции -> факты с табло -> движок хайлайтов -> озвучка важных моментов."""
+        match_id_ok(match_id)
+        t0 = time.perf_counter()
+        try:
+            image = base64.b64decode(body.image_b64)
+        except binascii.Error as e:
+            raise HTTPException(422, "bad image_b64") from e
+        pipe: Pipeline = app.state.pipeline
+        a = await asyncio.to_thread(pipe.analyze, MomentInput(match_id=match_id, image=image), pipe.bundle())
+        engine = app.state.matches.get(t, match_id)
+        new = engine.ingest(a.facts, body.frame)
+        cost = a.cost.total
+        rows = []
+        for h in new:
+            row = h.to_dict()
+            if h.should_announce and body.announce:
+                tts = get_tts(s.tts_backend, s.device)
+                wav = await asyncio.to_thread(synth_bumper, h.announce, s.params["serving"]["tts_seconds"], tts,
+                                              body.voice or "v5_6_ru/romchik")
+                cost += CostMeter().tts(len(h.announce))
+                app.state.matches.store_audio(f"{t}:{h.id}", wav)
+                row["audio_url"] = f"/v1/match/{match_id}/audio/{h.id}"
+            rows.append(row)
+        latency = time.perf_counter() - t0
+        STORE.record(endpoint="match_frame", latency=latency, cost=cost)
+        f = a.facts
+        return {"match_id": match_id, "frame": body.frame, "game_time": engine.last_time, "clock": f.get("timer"),
+                "score": f.get("score"), "kill_feed": f.get("kill_feed"), "towers": f.get("towers"),
+                "highlights": rows, "kills": len(engine.kills), "latency_s": round(latency, 4), "cost_usd": round(cost, 6)}
+
+    @app.get("/v1/match/{match_id}")
+    def match_summary(match_id: str, t: str = Depends(tenant)):
+        return app.state.matches.get(t, match_id_ok(match_id)).summary()
+
+    @app.post("/v1/match/{match_id}/reset")
+    def match_reset(match_id: str, t: str = Depends(tenant)):
+        app.state.matches.reset(t, match_id_ok(match_id))
+        return {"reset": True}
+
+    @app.get("/v1/match/{match_id}/audio/{hid}")
+    def match_audio(match_id: str, hid: str, t: str = Depends(tenant)):
+        wav = app.state.matches.audio.get(f"{t}:{hid}")
+        if wav is None:
+            raise HTTPException(404, "audio not found")
+        return Response(wav, media_type="audio/wav")
 
     @app.get("/v1/drift")
     def drift():

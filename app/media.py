@@ -26,15 +26,15 @@ from app.monitoring.metrics import THUMB_CACHE
 TTS_CHUNK = 16000  # байт ≈ 0.5 с PCM16 @16 кГц
 
 
-def synth_bumper(text: str, seconds: int = 8, tts=None) -> bytes:
+def synth_bumper(text: str, seconds: int = 8, tts=None, voice: str | None = None) -> bytes:
     """Ровно ``seconds`` секунд: начитка + тишина/обрезка. В ICMT — текст (удобно для round-trip теста)."""
     from app.backends.tts import MockTTS
 
     tts = tts or MockTTS()
-    voice = tts.synth(text, seconds)
+    audio = tts.synth(text, seconds, voice)
     out = np.zeros(seconds * tts.sample_rate, dtype=np.float32)
-    n = min(len(voice), len(out))
-    out[:n] = voice[:n]
+    n = min(len(audio), len(out))
+    out[:n] = audio[:n]
     return make_wav(out, tts.sample_rate, comment=text)
 
 

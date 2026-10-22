@@ -54,3 +54,18 @@ def test_real_silero_to_whisper_roundtrip():
     text = WhisperSTT(device=device).transcribe(wav).text
     m = extract_mentions(text)
     assert m.hero == "Vex" and m.event == "kill", text
+
+
+def test_character_voice_effects():
+    import numpy as np
+
+    from app.backends.voice_fx import CHARACTER_VOICES
+
+    sr = 48000
+    t = np.arange(sr * 2) / sr
+    voice = (0.5 * np.sin(2 * np.pi * 180 * t)).astype(np.float32)
+    for name, (base, fx) in CHARACTER_VOICES.items():
+        out = fx(voice, sr)
+        assert base == "eugene"
+        assert np.isfinite(out).all() and np.max(np.abs(out)) <= 0.91, name
+        assert len(out) > len(voice) * 0.9, name  # сдвиг тона/темпа + хвост реверберации

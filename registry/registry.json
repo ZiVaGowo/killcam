@@ -6,7 +6,7 @@
       "model_uri": "mock://llm/card-v1",
       "prompt_version": "caster:v1",
       "vlm": "vlm_score_ocr:1.0@7.35",
-      "data_hash": "sha256:3af93a5850b17ab2",
+      "data_hash": "sha256:9311493731a7d66a",
       "stage": "Production",
       "metrics": {},
       "notes": "baseline: счёт только с HUD",

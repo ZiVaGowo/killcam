@@ -26,7 +26,10 @@ from app.tools import ALLOW_LIST
 
 GOLD = ROOT / "evals" / "golden"
 BASELINE = ROOT / "evals" / "baseline.json"
-HIGHER_IS_BETTER = ["golden_pass_rate", "field_accuracy", "score_exact", "faithfulness", "stt_mention_accuracy", "multimodal_pass_rate"]
+HIGHER_IS_BETTER = ["golden_pass_rate", "field_accuracy", "score_exact", "faithfulness", "stt_mention_accuracy", "multimodal_pass_rate",
+                    "highlight_recall", "highlight_precision"]
+MATCH_VOD = ROOT / "data" / "vod" / "final_g5"
+HIGHLIGHT_TOLERANCE_S = 4
 LOWER_IS_BETTER = ["raw_score_halluc_rate"]
 
 
@@ -70,6 +73,35 @@ def _actions_ok(card: dict | None) -> bool:
         if a["tool"] == "publish_social" and not a.get("requires_hitl"):
             return False
     return True
+
+
+def evaluate_highlights(vlm, cases: list[dict]) -> dict:
+    """Прогон движка хайлайтов по сценарному матчу: precision/recall против задуманных моментов."""
+    from app.highlights import MatchEngine, RecordStore
+
+    frames = sorted(MATCH_VOD.glob("frame_*.png"))
+    if not frames:
+        return {"recall": None, "precision": None}
+    cfg = load_params()["highlights"]
+    engine = MatchEngine("final_g5", cfg, RecordStore(cfg["records"]))  # рекорды в памяти — прогон детерминирован
+    found = []
+    for i, f in enumerate(frames):
+        found += engine.ingest(vlm.extract(f.read_bytes()).to_dict(), i)
+    expected = load("match_final_g5")
+    used: set[int] = set()
+    for e in expected:
+        hit = next((j for j, h in enumerate(found) if j not in used and h.type == e["type"]
+                    and abs(h.game_time - e["game_time"]) <= HIGHLIGHT_TOLERANCE_S
+                    and e["who"] in (h.players[:1] + [h.team])), None)
+        if hit is not None:
+            used.add(hit)
+        fails = [] if hit is not None else [f"не найден {e['type']} {e['who']} на {e['game_time']} с"]
+        cases.append({"id": f"highlight_{e['type']}_{e['game_time']}", "suite": "highlights", "passed": not fails, "fails": fails})
+    for j, h in enumerate(found):
+        if j not in used:
+            cases.append({"id": f"highlight_extra_{h.type}_{h.clock}", "suite": "highlights", "passed": False,
+                          "fails": [f"лишний хайлайт: {h.title}"]})
+    return {"recall": round(len(used) / max(1, len(expected)), 4), "precision": round(len(used) / max(1, len(found)), 4)}
 
 
 async def evaluate(version: int | dict | None = None, settings: Settings | None = None) -> dict:
@@ -176,6 +208,9 @@ async def evaluate(version: int | dict | None = None, settings: Settings | None 
         mm_pass.append(not fails)
         cases.append({"id": c["id"], "suite": "multimodal", "passed": not fails, "fails": fails})
 
+    # ------------------------------------------------------------------ хайлайты сценарного матча
+    hl = evaluate_highlights(normal.bundle(vnum).vlm, cases)
+
     golden = [c for c in cases if c["suite"] in ("screens", "audio", "chat")]
     version_info = registry.get(vnum) if vnum is not None else registry.production()
     metrics = {
@@ -194,6 +229,8 @@ async def evaluate(version: int | dict | None = None, settings: Settings | None 
         "latency_p95_s": round(float(np.percentile(lat, 95)), 4),
         "ttft_p95_s": round(float(np.percentile(ttft, 95)), 4) if ttft else None,
         "cost_per_card_usd": round(float(np.mean(costs)), 6),
+        "highlight_recall": hl["recall"],
+        "highlight_precision": hl["precision"],
     }
     return {
         "version": {k: version_info.get(k) for k in ("version", "model_uri", "prompt_version", "vlm", "data_hash")},
@@ -206,6 +243,8 @@ def compare(metrics: dict, baseline: dict, params: dict | None = None) -> tuple[
     p = (params or load_params())["eval"]
     delta, reasons = p["delta"], []
     for k in HIGHER_IS_BETTER:
+        if metrics.get(k) is None or baseline.get(k) is None:  # набора нет (например, VOD не сгенерирован)
+            continue
         if k in baseline and metrics[k] < baseline[k] - delta:
             reasons.append(f"{k}: {metrics[k]} < baseline {baseline[k]} - delta {delta}")
     for k in LOWER_IS_BETTER:

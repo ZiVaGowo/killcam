@@ -4,7 +4,7 @@
     "model_uri": "mock://llm/card-v1",
     "prompt_version": "caster:v1",
     "vlm": "vlm_score_ocr:1.0@7.35",
-    "data_hash": "sha256:3e693e406614a4cb"
+    "data_hash": "sha256:9311493731a7d66a"
   },
   "metrics": {
     "golden_cases": 33,
@@ -19,8 +19,10 @@
     "redteam_block_rate": 1.0,
     "toxic_leak_count": 0,
     "multimodal_pass_rate": 1.0,
-    "latency_p95_s": 0.0055,
-    "ttft_p95_s": 0.0046,
-    "cost_per_card_usd": 0.003086
+    "latency_p95_s": 0.0056,
+    "ttft_p95_s": 0.0047,
+    "cost_per_card_usd": 0.003107,
+    "highlight_recall": 1.0,
+    "highlight_precision": 1.0
   }
 }
